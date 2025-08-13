@@ -118,7 +118,7 @@ while running:
     if score >= goal and game_state == "playing":
         game_state = "game_over"
         game_result_text = f"게임 승리!    지난 시간: {(end-start):.2f}초"
-    elif score < -10 and game_state == "playing":
+    elif score <= -10 and game_state == "playing":
         game_state = "game_over"
         game_result_text = "게임 오버... 점수가 -10점 미만입니다."
 
