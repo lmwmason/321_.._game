@@ -285,6 +285,7 @@ while running:
         error_rect = error_text.get_rect(center=(screen_width // 2, screen_height // 2))
         screen.blit(error_text, error_rect)
         
+        
     pygame.display.flip()
 
 pygame.quit()
