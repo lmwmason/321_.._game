@@ -4,6 +4,10 @@ import os
 import time
 
 pygame.init()
+sound = pygame.mixer.Sound("sounds/spy.wav")
+sound.play(-1)
+cor_sound = pygame.mixer.Sound("sounds/cor.wav")
+wro_sound = pygame.mixer.Sound("sounds/wro.wav")
 
 info = pygame.display.Info()
 screen_width = info.current_w
@@ -118,22 +122,6 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_ESCAPE:
-                running = False
-            if game_state == "title" and event.key == pygame.K_SPACE:
-                falling_speed = speed_options[selected_speed_index]
-                if create_falling_items():
-                    game_state = "playing"
-                    score = 0
-                    start_time = time.time()
-                else:
-                    game_state = "error"
-            elif game_state == "game_over" and event.key == pygame.K_r:
-                score = 0
-                game_state = "title" # 게임 오버 상태에서 R키를 누르면 타이틀 화면으로 돌아갑니다.
-                create_falling_items()
-                start_time = time.time()
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_pos = pygame.mouse.get_pos()
@@ -147,16 +135,44 @@ while running:
                     if rect.collidepoint(mouse_pos):
                         selected_speed_index = i
                         break
+                
+                start_button_rect = pygame.Rect(screen_width // 2 - 150, screen_height // 2 + 200, 300, 80)
+                if start_button_rect.collidepoint(mouse_pos):
+                    falling_speed = speed_options[selected_speed_index]
+                    if create_falling_items():
+                        game_state = "playing"
+                        score = 0
+                        start_time = time.time()
+                    else:
+                        game_state = "error"
+                        
             elif game_state == "playing":
                 if event.button == 1:
                     for item in falling_items:
                         if item["rect"].collidepoint(mouse_pos):
                             if item["label"] == "correct":
+                                cor_sound.play()
                                 score += 10
+                                
                             else:
+                                wro_sound.play()
                                 score -= 5
+                                
                             create_falling_items()
                             break
+                exit_button_rect = pygame.Rect(screen_width - 150, 10, 140, 60)
+                if exit_button_rect.collidepoint(mouse_pos):
+                    running = False
+            
+            elif game_state == "game_over":
+                restart_button_rect = pygame.Rect(screen_width // 2 - 250, screen_height // 2 + 100, 200, 70)
+                if restart_button_rect.collidepoint(mouse_pos):
+                    score = 0
+                    game_state = "title"
+                    
+                exit_button_rect = pygame.Rect(screen_width // 2 + 50, screen_height // 2 + 100, 200, 70)
+                if exit_button_rect.collidepoint(mouse_pos):
+                    running = False
 
     screen.fill(WHITE)
 
@@ -186,10 +202,12 @@ while running:
             button_text = font.render(speed, True, WHITE if i == selected_speed_index else BLACK)
             text_rect = button_text.get_rect(center=rect.center)
             screen.blit(button_text, text_rect)
-
-        instruction_text = font.render("스페이스 바를 눌러 게임을 시작하세요", True, BLACK)
-        instruction_rect = instruction_text.get_rect(center=(screen_width // 2, screen_height // 2 + 200))
-        screen.blit(instruction_text, instruction_rect)
+            
+        start_button_rect = pygame.Rect(screen_width // 2 - 150, screen_height // 2 + 200, 300, 80)
+        pygame.draw.rect(screen, GREEN, start_button_rect, border_radius=10)
+        start_button_text = font.render("게임 시작", True, WHITE)
+        start_text_rect = start_button_text.get_rect(center=start_button_rect.center)
+        screen.blit(start_button_text, start_text_rect)
         
     elif game_state == "playing":
         end_time = time.time()
@@ -234,6 +252,12 @@ while running:
         timer_text = font.render(f"남은 시간: {max(0, 60 - elapsed_time):.2f}초", True, BLACK)
         timer_rect = timer_text.get_rect(topright=(screen_width - 20, 10))
         screen.blit(timer_text, timer_rect)
+        
+        exit_button_rect = pygame.Rect(screen_width // 2 - 70, 10, 140, 60)
+        pygame.draw.rect(screen, RED, exit_button_rect, border_radius=10)
+        exit_button_text = font.render("종료", True, WHITE)
+        exit_text_rect = exit_button_text.get_rect(center=exit_button_rect.center)
+        screen.blit(exit_button_text, exit_text_rect)
 
     elif game_state == "game_over":
         result_text = title_font.render(game_result_text, True, game_result_color)
@@ -244,10 +268,18 @@ while running:
         final_score_rect = final_score_text.get_rect(center=(screen_width // 2, screen_height // 2))
         screen.blit(final_score_text, final_score_rect)
         
-        restart_text = font.render("R키를 눌러 다시 시작하거나 ESC를 눌러 종료하세요", True, BLACK)
-        restart_rect = restart_text.get_rect(center=(screen_width // 2, screen_height // 2 + 100))
-        screen.blit(restart_text, restart_rect)
+        restart_button_rect = pygame.Rect(screen_width // 2 - 250, screen_height // 2 + 100, 200, 70)
+        pygame.draw.rect(screen, BLUE, restart_button_rect, border_radius=10)
+        restart_button_text = font.render("다시 시작", True, WHITE)
+        restart_text_rect = restart_button_text.get_rect(center=restart_button_rect.center)
+        screen.blit(restart_button_text, restart_text_rect)
         
+        exit_button_rect = pygame.Rect(screen_width // 2 + 50, screen_height // 2 + 100, 200, 70)
+        pygame.draw.rect(screen, RED, exit_button_rect, border_radius=10)
+        exit_button_text = font.render("종료", True, WHITE)
+        exit_text_rect = exit_button_text.get_rect(center=exit_button_rect.center)
+        screen.blit(exit_button_text, exit_text_rect)
+
     elif game_state == "error":
         error_text = font.render("게임 시작에 필요한 이미지가 없어요. 게임을 종료합니다.", True, RED)
         error_rect = error_text.get_rect(center=(screen_width // 2, screen_height // 2))
