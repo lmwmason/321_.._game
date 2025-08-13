@@ -87,7 +87,7 @@ while running:
                 for item in falling_items:
                     if item["rect"].collidepoint(mouse_pos):
                         if item["label"] == "correct":
-                            score += 20
+                            score += 10
                         else:
                             score -= 5
                         create_falling_items()
