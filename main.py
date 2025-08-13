@@ -5,16 +5,35 @@ import time
 
 pygame.init()
 
-screen_width = 800
-screen_height = 600
-screen = pygame.display.set_mode((screen_width, screen_height))
+info = pygame.display.Info()
+screen_width = info.current_w
+screen_height = info.current_h
+screen = pygame.display.set_mode((screen_width, screen_height), pygame.FULLSCREEN)
 pygame.display.set_caption("떨어지는 정답 찾기")
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
+GRAY = (200, 200, 200)
+BLUE = (65, 105, 225)
+RED = (255, 69, 0)
+GREEN = (0, 255, 0)
 
-font = pygame.font.Font("fonts/Pinkfong Baby Shark Font_ Bold.ttf", 36)
+try:
+    font_path = "fonts/Pinkfong Baby Shark Font_ Bold.ttf"
+    if not os.path.exists(font_path):
+        font = pygame.font.Font(None, 60)
+    else:
+        font = pygame.font.Font(font_path, 60)
+    
+    title_font_path = "fonts/Pinkfong Baby Shark Font_ Bold.ttf"
+    if not os.path.exists(title_font_path):
+        title_font = pygame.font.Font(None, 120)
+    else:
+        title_font = pygame.font.Font(title_font_path, 120)
 
+except pygame.error as e:
+    font = pygame.font.Font(None, 60)
+    title_font = pygame.font.Font(None, 120)
 
 score = 0
 goal = 100
@@ -23,7 +42,7 @@ correct_path = "images/correct"
 wrong_path = "images/wrong"
 
 image_scale = 0.6
-falling_speed = 0.5
+falling_speed = 1
 
 def load_and_scale_image(path, scale):
     try:
@@ -34,13 +53,16 @@ def load_and_scale_image(path, scale):
         return None
 
 def load_images(correct_dir, wrong_dir, scale):
+    if not os.path.isdir(correct_dir) or not os.path.isdir(wrong_dir):
+        return [], []
+    
     correct_images = [load_and_scale_image(os.path.join(correct_dir, f), scale) for f in os.listdir(correct_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')) and os.path.isfile(os.path.join(correct_dir, f))]
     wrong_images = [load_and_scale_image(os.path.join(wrong_dir, f), scale) for f in os.listdir(wrong_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')) and os.path.isfile(os.path.join(wrong_dir, f))]
     return [img for img in correct_images if img is not None], [img for img in wrong_images if img is not None]
 
 correct_loaded_images, wrong_loaded_images = load_images(correct_path, wrong_path, image_scale)
 
-game_state = "playing"
+game_state = "title"
 falling_items = []
 falling_items_data = {}
 next_id = 0
@@ -54,49 +76,125 @@ def create_falling_items():
     if not correct_loaded_images or not wrong_loaded_images:
         return False
     
-    correct_img = random.choice(correct_loaded_images)
-    correct_x = random.randint(50, screen_width - 50 - correct_img.get_width())
-    rect = correct_img.get_rect(topleft=(correct_x, -correct_img.get_height()))
-    falling_items.append({"id": next_id, "label": "correct", "img": correct_img, "rect": rect})
-    falling_items_data[next_id] = float(rect.y)
-    next_id += 1
-
-    num_wrong = 3
-    wrong_selections = random.sample(wrong_loaded_images, min(num_wrong, len(wrong_loaded_images)))
+    all_images = [{"img": random.choice(correct_loaded_images), "label": "correct"}]
+    num_wrong = min(3, len(wrong_loaded_images))
+    wrong_selections = random.sample(wrong_loaded_images, num_wrong)
+    
     for img in wrong_selections:
-        wrong_x = random.randint(50, screen_width - 50 - img.get_width())
-        rect = img.get_rect(topleft=(wrong_x, random.randint(-500, -50 - img.get_height())))
-        falling_items.append({"id": next_id, "label": "wrong", "img": img, "rect": rect})
+        all_images.append({"img": img, "label": "wrong"})
+
+    random.shuffle(all_images)
+    
+    occupied_x = []
+    y_offset = 0 
+    
+    for item in all_images:
+        img = item["img"]
+        label = item["label"]
+        
+        while True:
+            x = random.randint(50, screen_width - 50 - img.get_width())
+            is_overlap = any(abs(x - ox) < 150 for ox in occupied_x)
+            if not is_overlap:
+                occupied_x.append(x)
+                break
+        
+        rect = img.get_rect(topleft=(x, -img.get_height() - y_offset))
+        falling_items.append({"id": next_id, "label": label, "img": img, "rect": rect})
         falling_items_data[next_id] = float(rect.y)
         next_id += 1
+        y_offset += random.randint(150, 300) 
     
     return True
 
-if not create_falling_items():
-    running = False
-
 running = True
-st = True
+start_time = 0
+end_time = 0
+
+speed_options = [1, 2, 3]
+selected_speed_index = 0
+
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        if event.type == pygame.MOUSEBUTTONDOWN and game_state == "playing":
-            if event.button == 1:
-                mouse_pos = pygame.mouse.get_pos()
-                for item in falling_items:
-                    if item["rect"].collidepoint(mouse_pos):
-                        if item["label"] == "correct":
-                            score += 10
-                        else:
-                            score -= 5
-                        create_falling_items()
-                        break
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                running = False
+            if game_state == "title" and event.key == pygame.K_SPACE:
+                falling_speed = speed_options[selected_speed_index]
+                if create_falling_items():
+                    game_state = "playing"
+                    score = 0
+                    start_time = time.time()
+                else:
+                    game_state = "error"
+            elif game_state == "game_over" and event.key == pygame.K_r:
+                score = 0
+                game_state = "title" # 게임 오버 상태에서 R키를 누르면 타이틀 화면으로 돌아갑니다.
+                create_falling_items()
+                start_time = time.time()
 
-    if game_state == "playing":
-        if st :
-            start = time.time()
-            st = False
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            mouse_pos = pygame.mouse.get_pos()
+            if game_state == "title":
+                button_x = screen_width // 2 - 300
+                button_y = screen_height // 2 + 50
+                button_width = 200
+                button_height = 70
+                for i in range(len(speed_options)):
+                    rect = pygame.Rect(button_x + i * 220, button_y, button_width, button_height)
+                    if rect.collidepoint(mouse_pos):
+                        selected_speed_index = i
+                        break
+            elif game_state == "playing":
+                if event.button == 1:
+                    for item in falling_items:
+                        if item["rect"].collidepoint(mouse_pos):
+                            if item["label"] == "correct":
+                                score += 10
+                            else:
+                                score -= 5
+                            create_falling_items()
+                            break
+
+    screen.fill(WHITE)
+
+    if game_state == "title":
+        title_text = title_font.render("떨어지는 정답 찾기", True, BLUE)
+        title_rect = title_text.get_rect(center=(screen_width // 2, screen_height // 2 - 250))
+        screen.blit(title_text, title_rect)
+        
+        goal_text = font.render(f"목표 점수: {goal}", True, BLACK)
+        goal_rect = goal_text.get_rect(center=(screen_width // 2, screen_height // 2 - 100))
+        screen.blit(goal_text, goal_rect)
+        
+        speed_text = font.render("속도 선택:", True, BLACK)
+        speed_rect = speed_text.get_rect(center=(screen_width // 2, screen_height // 2))
+        screen.blit(speed_text, speed_rect)
+        
+        button_x = screen_width // 2 - 300
+        button_y = screen_height // 2 + 50
+        button_width = 200
+        button_height = 70
+        
+        for i, speed in enumerate(["느림", "보통", "빠름"]):
+            rect = pygame.Rect(button_x + i * 220, button_y, button_width, button_height)
+            color = BLUE if i == selected_speed_index else GRAY
+            pygame.draw.rect(screen, color, rect, border_radius=10)
+            
+            button_text = font.render(speed, True, WHITE if i == selected_speed_index else BLACK)
+            text_rect = button_text.get_rect(center=rect.center)
+            screen.blit(button_text, text_rect)
+
+        instruction_text = font.render("스페이스 바를 눌러 게임을 시작하세요", True, BLACK)
+        instruction_rect = instruction_text.get_rect(center=(screen_width // 2, screen_height // 2 + 200))
+        screen.blit(instruction_text, instruction_rect)
+        
+    elif game_state == "playing":
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        
         should_create_new_items = False
         for item in falling_items:
             item_id = item["id"]
@@ -110,38 +208,51 @@ while running:
 
         if should_create_new_items:
             create_falling_items()
-        end = time.time()
-        if end-start > 60 :
+
+        if score >= goal:
             game_state = "game_over"
-            game_result_text = "게임 오버... 1분 시간제한이 끝났습니다."
+            game_result_text = f"게임 승리! 시간: {elapsed_time:.2f}초"
+            game_result_color = BLUE
+        elif score <= -10:
+            game_state = "game_over"
+            game_result_text = "게임 오버! 점수가 -10점 미만이에요."
+            game_result_color = RED
+        elif elapsed_time > 60:
+            game_state = "game_over"
+            game_result_text = "게임 오버! 1분 시간 제한이 끝났어요."
+            game_result_color = RED
 
-    if score >= goal and game_state == "playing":
-        game_state = "game_over"
-        game_result_text = f"게임 승리!    지난 시간: {(end-start):.2f}초"
-    elif score <= -10 and game_state == "playing":
-        game_state = "game_over"
-        game_result_text = "게임 오버... 점수가 -10점 미만입니다."
-
-    if game_state == "game_over" and event.type == pygame.KEYDOWN:
-        if event.key == pygame.K_r:
-            score = 0
-            game_state = "playing"
-            create_falling_items()
-            st = True
-
-    screen.fill(WHITE)
-
-    if game_state == "playing":
         for item in falling_items:
             screen.blit(item["img"], item["rect"])
+            
+        pygame.draw.rect(screen, GRAY, (0, 0, screen_width, 80))
+        
+        score_text = font.render(f"점수: {score} / {goal}", True, BLACK)
+        score_rect = score_text.get_rect(topleft=(20, 10))
+        screen.blit(score_text, score_rect)
+        
+        timer_text = font.render(f"남은 시간: {max(0, 60 - elapsed_time):.2f}초", True, BLACK)
+        timer_rect = timer_text.get_rect(topright=(screen_width - 20, 10))
+        screen.blit(timer_text, timer_rect)
 
-        score_text = font.render(f"점수: {score}     지난 시간: {(end-start):.2f}초", True, BLACK)
-        screen.blit(score_text, (10, 10))
     elif game_state == "game_over":
-        result_text = font.render(game_result_text, True, BLACK)
-        text_rect = result_text.get_rect(center=(screen_width // 2, screen_height // 2 - 20))
-        screen.blit(result_text, text_rect)
-
+        result_text = title_font.render(game_result_text, True, game_result_color)
+        result_rect = result_text.get_rect(center=(screen_width // 2, screen_height // 2 - 100))
+        screen.blit(result_text, result_rect)
+        
+        final_score_text = font.render(f"최종 점수: {score}", True, BLACK)
+        final_score_rect = final_score_text.get_rect(center=(screen_width // 2, screen_height // 2))
+        screen.blit(final_score_text, final_score_rect)
+        
+        restart_text = font.render("R키를 눌러 다시 시작하거나 ESC를 눌러 종료하세요", True, BLACK)
+        restart_rect = restart_text.get_rect(center=(screen_width // 2, screen_height // 2 + 100))
+        screen.blit(restart_text, restart_rect)
+        
+    elif game_state == "error":
+        error_text = font.render("게임 시작에 필요한 이미지가 없어요. 게임을 종료합니다.", True, RED)
+        error_rect = error_text.get_rect(center=(screen_width // 2, screen_height // 2))
+        screen.blit(error_text, error_rect)
+        
     pygame.display.flip()
 
 pygame.quit()
